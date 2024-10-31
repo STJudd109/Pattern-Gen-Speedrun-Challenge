@@ -1,3 +1,5 @@
 numpy
 Flask
 gunicorn
+pytest
+pytest-cov
