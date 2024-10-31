@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometric Pattern Generator</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        #patternContainer {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            margin: 20px auto;
+            background-color: white;
+        }
+
+        #huePreview {
+            width: 30px;
+            height: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <div class="control-group">
+            <label>
+                Symmetry
+                <span id="symmetryValue">6</span>
+            </label>
+            <input type="range" id="symmetry" min="3" max="12" value="6" step="1" 
+                   oninput="updateValue(this)">
+        </div>
+
+        <div class="control-group">
+            <label>
+                Layers
+                <span id="layersValue">3</span>
+            </label>
+            <input type="range" id="layers" min="1" max="5" value="3" step="1" 
+                   oninput="updateValue(this)">
+        </div>
+
+        <div class="control-group">
+            <label>
+                Complexity
+                <span id="complexityValue">0.7</span>
+            </label>
+            <input type="range" id="complexity" min="0.1" max="1" value="0.7" step="0.1" 
+                   oninput="updateValue(this)">
+        </div>
+
+        <div class="control-group">
+            <label>
+                Base Hue
+                <div id="huePreview"></div>
+            </label>
+            <input type="range" id="baseHue" min="0" max="1" value="0.5" step="0.01" 
+                   oninput="updateValue(this)">
+        </div>
+
+        <div class="control-group">
+            <label>Color Palette</label>
+            <select id="palette" onchange="generatePattern()">
+                <option value="monochromatic">Monochromatic</option>
+                <option value="complementary">Complementary</option>
+                <option value="triadic">Triadic</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button onclick="generatePattern()">Generate New Pattern</button>
+        <button id="toggleAnimationBtn" onclick="toggleAnimation()">Pause Animation</button>
+        <button id="downloadBtn" onclick="downloadSVG()">Download SVG</button>
+    </div>
+
+    <div id="patternContainer">
+        <svg id="patternSvg" width="800" height="800" viewBox="-400 -400 800 800">
+            <g id="patternGroup"></g>
+        </svg>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        let isAnimating = true;
+        let currentRotation = 0;
+        let rotationSpeed = 0.2;
+        let currentPattern = null;
+
+        function updateValue(input) {
+            const display = document.getElementById(input.id + 'Value');
+            if (display) {
+                display.textContent = input.value;
+            }
+            
+            if (input.id === 'baseHue') {
+                updateHuePreview(input.value);
+            }
+            
+            generatePattern();
+        }
+
+        function updateHuePreview(hue) {
+            const rgb = HSVtoRGB(parseFloat(hue), 1, 1);
+            document.getElementById('huePreview').style.backgroundColor = 
+                `rgb(${rgb.r * 255}, ${rgb.g * 255}, ${rgb.b * 255})`;
+        }
+
+        function HSVtoRGB(h, s, v) {
+            let r, g, b;
+            const i = Math.floor(h * 6);
+            const f = h * 6 - i;
+            const p = v * (1 - s);
+            const q = v * (1 - f * s);
+            const t = v * (1 - (1 - f) * s);
+
+            switch (i % 6) {
+                case 0: r = v; g = t; b = p; break;
+                case 1: r = q; g = v; b = p; break;
+                case 2: r = p; g = v; b = t; break;
+                case 3: r = p; g = q; b = v; break;
+                case 4: r = t; g = p; b = v; break;
+                case 5: r = v; g = p; b = q; break;
+            }
+
+            return { r, g, b };
+        }
+
+        function toggleAnimation() {
+            isAnimating = !isAnimating;
+            const btn = document.getElementById('toggleAnimationBtn');
+            btn.textContent = isAnimating ? 'Pause Animation' : 'Resume Animation';
+        }
+
+        async function generatePattern() {
+            const params = new URLSearchParams({
+                symmetry: document.getElementById('symmetry').value,
+                layers: document.getElementById('layers').value,
+                complexity: document.getElementById('complexity').value,
+                rotation: currentRotation,
+                hue: document.getElementById('baseHue').value,
+                palette: document.getElementById('palette').value
+            });
+
+            try {
+                const response = await fetch(`/geometric/generate?${params}`);
+                currentPattern = await response.json();
+                drawPattern();
+            } catch (error) {
+                console.error('Error generating pattern:', error);
+            }
+        }
+
+        function drawPattern() {
+            if (!currentPattern) return;
+
+            const group = d3.select('#patternGroup');
+            group.selectAll('*').remove();
+
+            currentPattern.shapes.forEach(shape => {
+                if (shape.type === 'polygon') {
+                    group.append('polygon')
+                        .attr('points', shape.points.map(p => `${p[0]},${p[1]}`).join(' '))
+                        .attr('fill', shape.color)
+                        .attr('stroke', 'none')
+                        .attr('opacity', 0.8);
+                } else if (shape.type === 'line') {
+                    group.append('line')
+                        .attr('x1', shape.start[0])
+                        .attr('y1', shape.start[1])
+                        .attr('x2', shape.end[0])
+                        .attr('y2', shape.end[1])
+                        .attr('stroke', shape.color)
+                        .attr('stroke-width', 2)
+                        .attr('opacity', 0.6);
+                }
+            });
+        }
+
+        function animate() {
+            if (isAnimating) {
+                currentRotation = (currentRotation + rotationSpeed) % 360;
+                const group = document.getElementById('patternGroup');
+                group.setAttribute('transform', `rotate(${currentRotation})`);
+            }
+            requestAnimationFrame(animate);
+        }
+
+        function downloadSVG() {
+            const svg = document.getElementById('patternSvg');
+            const serializer = new XMLSerializer();
+            let source = serializer.serializeToString(svg);
+            
+            source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+            
+            const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
+            const link = document.createElement('a');
+            link.download = 'geometric-pattern.svg';
+            link.href = url;
+            link.click();
+        }
+
+        // Initialize
+        updateHuePreview(document.getElementById('baseHue').value);
+        generatePattern();
+        animate();
+    </script>
+</body>
+</html> 

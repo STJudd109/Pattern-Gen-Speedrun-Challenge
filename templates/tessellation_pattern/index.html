@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tessellation Pattern Generator</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 800px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .value-display {
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        select, input[type="range"] {
+            width: 100%;
+            padding: 5px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        #patternContainer {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin: 20px;
+            overflow: hidden;
+        }
+
+        .home-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            text-decoration: none;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('index') }}" class="home-link">← Back to Menu</a>
+    <h1>Tessellation Pattern Generator</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>Pattern Type</label>
+            <select id="patternType">
+                <option value="triangular">Triangular</option>
+                <option value="square">Square</option>
+                <option value="hexagonal">Hexagonal</option>
+            </select>
+
+            <label>
+                Cell Size
+                <span class="value-display" id="cellSizeValue">50</span>
+            </label>
+            <input type="range" id="cellSize" min="20" max="100" value="50" oninput="updateValue(this)">
+        </div>
+
+        <div class="control-group">
+            <label>
+                Rotation
+                <span class="value-display" id="rotationValue">0</span>
+            </label>
+            <input type="range" id="rotation" min="0" max="360" value="0" oninput="updateValue(this)">
+
+            <label>
+                Offset
+                <span class="value-display" id="offsetValue">0</span>
+            </label>
+            <input type="range" id="offset" min="0" max="100" value="0" oninput="updateValue(this)">
+        </div>
+
+        <div class="control-group">
+            <label>Color Scheme</label>
+            <select id="colorScheme">
+                <option value="monochromatic">Monochromatic</option>
+                <option value="complementary">Complementary</option>
+                <option value="triadic">Triadic</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button onclick="generatePattern()">Generate New Pattern</button>
+        <button onclick="downloadSVG()">Download SVG</button>
+    </div>
+
+    <div id="patternContainer">
+        <svg id="patternSvg" width="800" height="800" viewBox="0 0 800 800">
+            <defs>
+                <pattern id="tessellationPattern" patternUnits="userSpaceOnUse">
+                </pattern>
+            </defs>
+            <rect width="800" height="800" fill="url(#tessellationPattern)" />
+        </svg>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        let currentPattern = null;
+
+        function updateValue(input) {
+            document.getElementById(input.id + 'Value').textContent = input.value;
+            generatePattern();
+        }
+
+        async function generatePattern() {
+            const params = new URLSearchParams({
+                pattern: document.getElementById('patternType').value,
+                cellSize: document.getElementById('cellSize').value,
+                rotation: document.getElementById('rotation').value,
+                offset: document.getElementById('offset').value,
+                colorScheme: document.getElementById('colorScheme').value
+            });
+
+            const response = await fetch(`/tessellation/generate?${params}`);
+            const data = await response.json();
+            currentPattern = data;
+            renderPattern(data);
+        }
+
+        function renderPattern(data) {
+            const svg = d3.select('#patternSvg');
+            const pattern = d3.select('#tessellationPattern');
+            
+            // Calculate pattern size based on cell size
+            const patternSize = data.cellSize * 2;
+            pattern
+                .attr('width', patternSize)
+                .attr('height', patternSize)
+                .attr('patternTransform', `rotate(${data.rotation})`)
+                .attr('x', '0')
+                .attr('y', '0');
+
+            // Clear existing pattern
+            pattern.selectAll('*').remove();
+
+            // Create the base unit group
+            const baseUnit = pattern.append('g')
+                .attr('transform', `translate(${data.offset}, ${data.offset})`);
+
+            // Draw the base shape
+            if (data.type === 'triangular') {
+                drawTriangularPattern(baseUnit, data);
+            } else if (data.type === 'square') {
+                drawSquarePattern(baseUnit, data);
+            } else if (data.type === 'hexagonal') {
+                drawHexagonalPattern(baseUnit, data);
+            }
+        }
+
+        function drawTriangularPattern(group, data) {
+            const size = data.cellSize;
+            const height = size * Math.sin(Math.PI/3);
+            
+            // Draw base triangle
+            group.append('path')
+                .attr('d', `M0,0 L${size},0 L${size/2},${height} Z`)
+                .attr('fill', data.colors[0])
+                .attr('stroke', '#fff')
+                .attr('stroke-width', '1');
+
+            // Draw reflected triangles for complete tessellation
+            group.append('path')
+                .attr('d', `M0,0 L${size/2},${height} L${-size/2},${height} Z`)
+                .attr('fill', data.colors[1])
+                .attr('stroke', '#fff')
+                .attr('stroke-width', '1');
+        }
+
+        function drawSquarePattern(group, data) {
+            const size = data.cellSize;
+            
+            // Draw base square
+            group.append('rect')
+                .attr('x', 0)
+                .attr('y', 0)
+                .attr('width', size)
+                .attr('height', size)
+                .attr('fill', data.colors[0])
+                .attr('stroke', '#fff')
+                .attr('stroke-width', '1');
+
+            // Add decorative elements
+            group.append('circle')
+                .attr('cx', size/2)
+                .attr('cy', size/2)
+                .attr('r', size/4)
+                .attr('fill', data.colors[1])
+                .attr('stroke', '#fff')
+                .attr('stroke-width', '1');
+        }
+
+        function drawHexagonalPattern(group, data) {
+            const size = data.cellSize;
+            const points = data.baseUnit.points;
+            
+            // Draw base hexagon
+            group.append('path')
+                .attr('d', `M${points.map(p => p.join(',')).join('L')}Z`)
+                .attr('fill', data.colors[0])
+                .attr('stroke', '#fff')
+                .attr('stroke-width', '1');
+
+            // Add decorative elements
+            group.append('circle')
+                .attr('cx', 0)
+                .attr('cy', 0)
+                .attr('r', size/3)
+                .attr('fill', data.colors[1])
+                .attr('stroke', '#fff')
+                .attr('stroke-width', '1');
+        }
+
+        function downloadSVG() {
+            const svg = document.getElementById('patternSvg');
+            const serializer = new XMLSerializer();
+            let source = serializer.serializeToString(svg);
+            
+            // Add name spaces
+            if(!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)){
+                source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+            }
+            if(!source.match(/^<svg[^>]+"http\:\/\/www\.w3\.org\/1999\/xlink"/)){
+                source = source.replace(/^<svg/, '<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+            }
+
+            // Add XML declaration
+            source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
+
+            // Convert svg source to URL data
+            const url = "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(source);
+            
+            // Create download link
+            const downloadLink = document.createElement("a");
+            downloadLink.href = url;
+            downloadLink.download = "tessellation_pattern.svg";
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+
+        // Initialize pattern on load
+        window.onload = generatePattern;
+    </script>
+</body>
+</html> 

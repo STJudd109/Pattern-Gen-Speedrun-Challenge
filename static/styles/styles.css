@@ -1,0 +1,43 @@
+canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: -1;
+}
+
+.settings-panel {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.setting {
+    margin-bottom: 10px;
+}
+
+.setting label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.setting input {
+    width: 150px;
+    margin-right: 10px;
+}
+
+.setting input[type="color"] {
+    width: 50px;
+    height: 30px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+}
+
+.setting span {
+    font-family: monospace;
+} 

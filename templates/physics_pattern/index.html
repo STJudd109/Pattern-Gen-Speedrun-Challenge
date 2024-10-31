@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Physics Pattern Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-height: 90vh;
+            overflow-y: auto;
+            width: 300px;
+        }
+
+        .mode-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .mode-btn {
+            flex: 1;
+            background: #444;
+            color: white;
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            min-width: 100px;
+        }
+
+        .mode-btn.active {
+            background: #007bff;
+        }
+
+        .control-panel {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .control-group select,
+        .control-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+        }
+
+        .control-group input[type="range"] {
+            padding: 0;
+        }
+
+        .value-display {
+            float: right;
+            font-family: monospace;
+            color: #007bff;
+        }
+
+        .global-controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .global-controls button {
+            flex: 1;
+            padding: 10px;
+        }
+
+        h3 {
+            margin-top: 0;
+            color: #007bff;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        .mode-indicator {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            z-index: 1000;
+            font-weight: bold;
+        }
+
+        #statsDisplay {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <div class="mode-controls">
+            <button id="viewModeBtn" onclick="setMode('view')" class="mode-btn active">View Mode</button>
+            <button id="objectModeBtn" onclick="setMode('object')" class="mode-btn">Object Mode</button>
+            <button id="effectorModeBtn" onclick="setMode('effector')" class="mode-btn">Effector Mode</button>
+            <button id="structureModeBtn" onclick="setMode('structure')" class="mode-btn">Structure Mode</button>
+        </div>
+
+        <div id="objectControls" class="control-panel" style="display: none;">
+            <h3>Object Settings</h3>
+            <div class="control-group">
+                <label>Object Type</label>
+                <select id="objectType">
+                    <option value="sphere">Sphere</option>
+                    <option value="cube">Cube</option>
+                    <option value="cylinder">Cylinder</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Object Size</label>
+                <input type="range" id="objectSize" min="0.5" max="3" step="0.1" value="1">
+                <span class="value-display">1.0</span>
+            </div>
+
+            <div class="control-group">
+                <label>Object Mass</label>
+                <input type="range" id="objectMass" min="0.1" max="10" step="0.1" value="1">
+                <span class="value-display">1.0</span>
+            </div>
+
+            <div class="control-group">
+                <label>Initial Height</label>
+                <input type="range" id="objectHeight" min="1" max="20" step="0.5" value="10">
+                <span class="value-display">10.0</span>
+            </div>
+        </div>
+
+        <div id="effectorControls" class="control-panel" style="display: none;">
+            <h3>Effector Settings</h3>
+            <div class="control-group">
+                <label>Effector Type</label>
+                <select id="effectorType">
+                    <option value="gravity">Gravity Well</option>
+                    <option value="repulsor">Repulsor</option>
+                    <option value="vortex">Vortex</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Effector Strength</label>
+                <input type="range" id="effectorStrength" min="0" max="100" value="50">
+                <span class="value-display">50</span>
+            </div>
+
+            <div class="control-group">
+                <label>Effector Radius</label>
+                <input type="range" id="effectorRadius" min="1" max="20" value="5">
+                <span class="value-display">5.0</span>
+            </div>
+        </div>
+
+        <div id="structureControls" class="control-panel" style="display: none;">
+            <h3>Structure Settings</h3>
+            <div class="control-group">
+                <label>Structure Type</label>
+                <select id="structureType">
+                    <option value="wall">Wall</option>
+                    <option value="pyramid">Pyramid</option>
+                    <option value="castle">Castle</option>
+                    <option value="tower">Tower</option>
+                    <option value="domino">Domino Line</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Structure Scale</label>
+                <input type="range" id="structureScale" min="0.5" max="2" step="0.1" value="1">
+                <span class="value-display">1.0</span>
+            </div>
+
+            <div class="control-group">
+                <label>Block Size</label>
+                <input type="range" id="structureBlockSize" min="0.5" max="2" step="0.1" value="1">
+                <span class="value-display">1.0</span>
+            </div>
+        </div>
+
+        <div class="global-controls">
+            <button onclick="clearScene()">Clear Scene</button>
+            <button onclick="togglePhysics()" id="physicsToggle">Pause Physics</button>
+        </div>
+    </div>
+
+    <div id="modeIndicator" class="mode-indicator">View Mode</div>
+
+    <script src="{{ url_for('static', filename='js/physics_pattern.js') }}"></script>
+</body>
+</html>
